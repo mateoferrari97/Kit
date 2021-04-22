@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"encoding/json"
@@ -12,8 +12,8 @@ func RespondJSON(w http.ResponseWriter, v interface{}, statusCode int) error {
 	}
 
 	var jsonData []byte
-
 	var err error
+
 	switch v := v.(type) {
 	case []byte:
 		jsonData = v

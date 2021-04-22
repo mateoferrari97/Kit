@@ -1,28 +1,32 @@
-package web
+package server
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
 )
 
-const defaultPort = "8081"
+const defaultPort = ":8081"
 
 type Server struct {
 	Router *mux.Router
 }
 
 func NewServer() *Server {
-	return &Server{Router: mux.NewRouter()}
+	return &Server{
+		Router: mux.NewRouter(),
+	}
 }
 
 func (s *Server) Run(port string) error {
-	port = configPort(port)
+	port = setupPort(port)
+
+	s.Wrap(http.MethodGet, "/ping", func(w http.ResponseWriter, r *http.Request) error {
+		return RespondJSON(w, "pong", http.StatusOK)
+	})
 
 	log.Printf("Listening on port %s", port)
-
 	return http.ListenAndServe(port, s.Router)
 }
 
@@ -35,19 +39,17 @@ func (s *Server) Wrap(method string, pattern string, handler HandlerFunc) {
 			return
 		}
 
-		handleError(w, err)
+		hErr := handleError(w, err)
+		_ = RespondJSON(w, hErr, hErr.StatusCode)
 	}
 
 	s.Router.HandleFunc(pattern, wrapH).Methods(method)
 }
 
-func configPort(port string) string {
+func setupPort(port string) string {
 	if port == "" {
 		port = defaultPort
-	}
-
-	if string(port[0]) != ":" {
-		port = fmt.Sprintf(":%s", port)
+		log.Printf("Defaulting to port %s", port)
 	}
 
 	return port
