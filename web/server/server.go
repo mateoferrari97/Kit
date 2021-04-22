@@ -30,10 +30,37 @@ func (s *Server) Run(port string) error {
 	return http.ListenAndServe(port, s.Router)
 }
 
+func setupPort(port string) string {
+	if port == "" {
+		port = defaultPort
+		log.Printf("Defaulting to port %s", port)
+	}
+
+	return port
+}
+
 type HandlerFunc func(w http.ResponseWriter, r *http.Request) error
 
-func (s *Server) Wrap(method string, pattern string, handler HandlerFunc) {
-	wrapH := func(w http.ResponseWriter, r *http.Request) {
+type Middleware func(h http.HandlerFunc) http.HandlerFunc
+
+func (s *Server) Wrap(method string, pattern string, handler HandlerFunc, mws ...Middleware) {
+	s.Router.HandleFunc(pattern, wrapHandler(handlerAdapter(handler), mws...)).Methods(method)
+}
+
+func wrapHandler(handler http.HandlerFunc, mws ...Middleware) http.HandlerFunc {
+	length := len(mws) - 1
+	for mw := length; mw >= 0; mw-- {
+		h := mws[mw]
+		if h != nil {
+			handler = h(handler)
+		}
+	}
+
+	return handler
+}
+
+func handlerAdapter(handler HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		err := handler(w, r)
 		if err == nil {
 			return
@@ -42,15 +69,4 @@ func (s *Server) Wrap(method string, pattern string, handler HandlerFunc) {
 		hErr := handleError(w, err)
 		_ = RespondJSON(w, hErr, hErr.StatusCode)
 	}
-
-	s.Router.HandleFunc(pattern, wrapH).Methods(method)
-}
-
-func setupPort(port string) string {
-	if port == "" {
-		port = defaultPort
-		log.Printf("Defaulting to port %s", port)
-	}
-
-	return port
 }

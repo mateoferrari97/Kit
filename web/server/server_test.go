@@ -96,3 +96,33 @@ func TestServer_Wrap_HandleError(t *testing.T) {
 		})
 	}
 }
+
+func TestServer_Wrap_Middleware(t *testing.T) {
+	// Given
+	s := NewServer()
+
+	ts := httptest.NewServer(s.Router)
+	defer ts.Close()
+
+	var m string
+	s.Wrap(http.MethodGet, "/test", func(w http.ResponseWriter, r *http.Request) error {
+		m = m + "f(x)[LAST_EXECUTION]"
+		return nil
+	}, func(h http.HandlerFunc) http.HandlerFunc {
+		m = m + "g(x)->"
+		return h
+	}, func(h http.HandlerFunc) http.HandlerFunc {
+		m = m + "h(x)->"
+		return h
+	})
+
+	// When
+	resp, err := http.Get(fmt.Sprintf("%s/test", ts.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Then
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, "h(x)->g(x)->f(x)[LAST_EXECUTION]", m)
+}
